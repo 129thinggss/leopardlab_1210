@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Leopard Lab — Start</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+        Arial, sans-serif;
+      background: #fff;
+      color: #111;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .page {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 오른쪽 상단 About / Moments */
+    .top-nav {
+      position: absolute;
+      right: 40px;
+      top: 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 3;
+    }
+
+    .pill-btn {
+      padding: 6px 18px;
+      border-radius: 999px;
+      border: 1px solid #111;
+      background: #fff;
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .pill-btn:hover {
+      background: #111;
+      color: #fff;
+    }
+
+    /* 패턴 타일 그리드 (전체 화면) */
+    .archive-layer {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      /* cols/rows는 JS에서 동적으로 변경 */
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      grid-auto-rows: 120px;
+      gap: 0;
+      z-index: 1;
+    }
+
+    .archive-tile {
+      width: 100%;
+      height: 100%;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      will-change: background-image;
+    }
+
+    /* 가운데 로고 + 버튼 */
+    .hero {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .hero-inner {
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+    }
+
+    .logo-img {
+      width: 560px;
+      max-width: 95vw;
+      height: auto;
+      transition: filter 0.25s ease;
+    }
+
+    .logo-img:hover {
+      filter: invert(1);
+    }
+
+    .enter-btn {
+      padding: 8px 40px;
+      border-radius: 999px;
+      background: #000;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+      letter-spacing: 0.07em;
+      cursor: pointer;
+      transition: 0.2s ease;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.18);
+    }
+
+    .enter-btn:hover {
+      transform: translateY(-3px) scale(1.03);
+      background: #111;
+      box-shadow: 0 8px 35px rgba(0,0,0,0.24);
+    }
+
+    @media (max-width: 768px) {
+      .archive-layer {
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+        grid-auto-rows: 90px;
+      }
+      .logo-img {
+        width: 420px;
+      }
+
+      .top-nav {
+        right: 20px;
+        top: 20px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+
+    <!-- 오른쪽 상단 -->
+    <div class="top-nav">
+      <button class="pill-btn" onclick="window.location.href='about.html'">
+        About
+      </button>
+      <button class="pill-btn"
+              onclick="window.location.href='generator.html#archive'">
+        Moments
+      </button>
+    </div>
+
+    <!-- 패턴 타일 레이어 -->
+    <div class="archive-layer" id="archiveLayer"></div>
+
+    <!-- logo + enter -->
+    <main class="hero">
+      <div class="hero-inner">
+        <img src="leopard-logo.svg" class="logo-img" alt="LEOPARD" />
+        <a href="generator.html" class="enter-btn">Enter LAB</a>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Firestore + 패턴 그리드 스크립트 -->
+<script>
+  // 🔹 랜덤 배치에 사용할 배경 이미지들 (경로는 프로젝트에 맞게 수정)
+  const BG_IMAGES = [
+    "bg1.png",
+    "bg2.png",
+    "bg3.png",
+    "bg4.png"
+  ];
+
+  // 반응형 & 타일 크기 범위
+  const MOBILE_BREAKPOINT = 768;
+
+  // 데스크탑/모바일 각각 최소·최대 타일 가로폭
+  const DESKTOP_TILE_MIN = 260;   // 가장 촘촘할 때
+  const DESKTOP_TILE_MAX = 800;   // 가장 클 때 (기본 최대)
+  const MOBILE_TILE_MIN  = 200;
+  const MOBILE_TILE_MAX  = 520;
+
+  // "점점" 커졌다/작아졌다 하는 애니메이션 주기 (느리게)
+  const CYCLE_MS      = 12000;          // 12초에 1 사이클
+  const PHASE_STEPS   = 12;             // 24단계로 부드럽게
+  const STEP_INTERVAL = CYCLE_MS / PHASE_STEPS;
+
+  let archiveLayer = null;
+  let bgMeta = [];        // { url, ratio }
+  let tileEls = [];       // 만들어진 타일 DOM 리스트
+  let resizeTimer = null;
+  let phaseTimer = null;
+  let phaseIndex = 0;     // 0 ~ PHASE_STEPS-1
+
+  // --------------------------------------------------
+  // 현재 화면이 모바일인지 판단
+  // --------------------------------------------------
+  function isMobile() {
+    return window.innerWidth <= MOBILE_BREAKPOINT;
+  }
+
+  // --------------------------------------------------
+  // 현재 단계(phase)에 따른 0~1 웨이브 값
+  //  - 0과 1에서 크고, 중간에서 가장 작게 (cos 파형)
+  // --------------------------------------------------
+  function getPhaseFactor(idx) {
+    const t = idx / (PHASE_STEPS - 1);              // 0 → 1
+    const wave = 0.5 - 0.5 * Math.cos(t * 2 * Math.PI); // 0 → 1 → 0
+    return wave; // 0이면 MAX, 1이면 MIN 쪽
+  }
+
+  // --------------------------------------------------
+  // 현재 phase에서 사용할 타일 가로폭 계산
+  //  - phase 0마다 항상 더 크게 시작 (옵션 A)
+  // --------------------------------------------------
+  function getTileWidthForPhase(idx) {
+    // 🔥 매 사이클 시작(phase 0)마다 기본 최대보다 더 크게
+    if (idx === 0) {
+      const extra = isMobile() ? 200 : 350; // 모바일/데스크탑에서 얼마나 더 키울지
+      const baseMax = isMobile() ? MOBILE_TILE_MAX : DESKTOP_TILE_MAX;
+      return baseMax + extra;
+    }
+
+    const wave = getPhaseFactor(idx);
+    const minW = isMobile() ? MOBILE_TILE_MIN  : DESKTOP_TILE_MIN;
+    const maxW = isMobile() ? MOBILE_TILE_MAX  : DESKTOP_TILE_MAX;
+
+    // wave = 0 → maxW, wave = 1 → minW
+    return Math.round(maxW - wave * (maxW - minW));
+  }
+
+  // --------------------------------------------------
+  // 플립(좌우/상하/대각/무플립) 랜덤 적용
+  // --------------------------------------------------
+  function applyRandomFlip(tile) {
+    const r = Math.random();
+    let t = "none";
+
+    if (r < 0.25) {
+      t = "scaleX(-1)";        // 좌우 반전
+    } else if (r < 0.5) {
+      t = "scaleY(-1)";        // 상하 반전
+    } else if (r < 0.75) {
+      t = "scale(-1, -1)";     // 좌우+상하
+    } else {
+      t = "none";              // 그대로
+    }
+
+    tile.style.transform = t;
+    tile.style.transformOrigin = "center center";
+  }
+
+  // --------------------------------------------------
+  // 특정 phase 기준으로 그리드 생성
+  //  - 타일 크기(=개수)가 커졌다/작아졌다
+  //  - bg1~4 + 플립 랜덤
+  // --------------------------------------------------
+  function buildGridForPhase(idx) {
+    if (!archiveLayer || !bgMeta.length) return;
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    const tileWidth  = getTileWidthForPhase(idx);
+    const baseRatio  = bgMeta[0].ratio || (9 / 16);  // 못 읽으면 16:9 가정
+    const tileHeight = Math.round(tileWidth * baseRatio);
+
+    // 화면을 덮기 위해 필요한 열/행 수 계산
+    const cols  = Math.ceil(vw / tileWidth) + 1;
+    const rows  = Math.ceil(vh / tileHeight) + 1;
+    const total = cols * rows;
+
+    archiveLayer.innerHTML = "";
+    tileEls = new Array(total);
+
+    archiveLayer.style.display = "grid";
+    archiveLayer.style.gridTemplateColumns = `repeat(${cols}, ${tileWidth}px)`;
+    archiveLayer.style.gridAutoRows       = `${tileHeight}px`;
+
+    for (let i = 0; i < total; i++) {
+      const meta = bgMeta[Math.floor(Math.random() * bgMeta.length)];
+
+      const tile = document.createElement("div");
+      tile.className = "archive-tile";
+
+      tile.style.width  = tileWidth + "px";
+      tile.style.height = tileHeight + "px";
+
+      tile.style.backgroundImage    = `url(${meta.url})`;
+      tile.style.backgroundRepeat   = "repeat";
+      tile.style.backgroundSize     = "cover";
+      tile.style.backgroundPosition = "center";
+
+      // 🔥 플립 랜덤 적용
+      applyRandomFlip(tile);
+
+      tileEls[i] = tile;
+      archiveLayer.appendChild(tile);
+    }
+  }
+
+  // --------------------------------------------------
+  // 주기적으로 phase를 증가시키면서
+  //  타일 크기/개수 + 이미지/플립을 함께 갱신
+  //  (매 사이클 시작 = 큰 타일 그리드)
+  // --------------------------------------------------
+  function advancePhase() {
+    phaseIndex = (phaseIndex + 1) % PHASE_STEPS;
+    buildGridForPhase(phaseIndex);
+  }
+
+  // --------------------------------------------------
+  // 이미지 프리로드 + 비율 추출
+  // --------------------------------------------------
+  function preloadAndInit() {
+    if (!BG_IMAGES.length) return;
+
+    let loaded = 0;
+
+    BG_IMAGES.forEach((url) => {
+      const img = new Image();
+
+      img.onload = function () {
+        const ratio =
+          img.naturalWidth && img.naturalHeight
+            ? img.naturalHeight / img.naturalWidth
+            : 9 / 16;
+
+        bgMeta.push({ url, ratio });
+        loaded++;
+
+        // 모든 이미지 로딩 완료 후 그리드 + 애니메이션 시작
+        if (loaded === BG_IMAGES.length && bgMeta.length) {
+          phaseIndex = 0;
+          buildGridForPhase(phaseIndex);
+
+          if (!phaseTimer) {
+            phaseTimer = setInterval(advancePhase, STEP_INTERVAL);
+          }
+        }
+      };
+
+      img.onerror = function () {
+        loaded++;
+        if (loaded === BG_IMAGES.length && bgMeta.length) {
+          phaseIndex = 0;
+          buildGridForPhase(phaseIndex);
+
+          if (!phaseTimer) {
+            phaseTimer = setInterval(advancePhase, STEP_INTERVAL);
+          }
+        }
+      };
+
+      img.src = url;
+    });
+  }
+
+  // --------------------------------------------------
+  // 초기 실행
+  // --------------------------------------------------
+  window.addEventListener("load", function () {
+    archiveLayer = document.getElementById("archiveLayer");
+    if (!archiveLayer) return;
+
+    preloadAndInit();
+
+    // 리사이즈 시, 현재 phase를 유지한 채 다시 그리기 (디바운스)
+    window.addEventListener("resize", function () {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        buildGridForPhase(phaseIndex);
+      }, 180);
+    });
+  });
+</script>
