@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Leopard Lab — About</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+        Arial, sans-serif;
+      background: #f5f5f5;
+      color: #111;
+      min-height: 100vh;
+    }
+
+    .page {
+      position: relative;
+      min-height: 100vh;
+      padding: 24px 32px 40px;
+    }
+
+    /* 상단 네비게이션 */
+    .top-nav {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .pill-btn {
+      padding: 6px 18px;
+      border-radius: 999px;
+      border: 1px solid #111;
+      background: #fff;
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .pill-btn:hover {
+      background: #000;
+      color: #fff;
+    }
+
+    .pill-btn.active {
+      background: #000;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* 메인 이미지 래퍼 */
+    .about-wrap {
+      position: relative;         /* 🔥 위에 떠다니는 레이어 기준이 되도록 */
+      max-width: 1350px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+
+    .about-img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    /* 🔥 키비주얼 위 떠다니는 썸네일 레이어 */
+    .floating-archive {
+      position: absolute;
+      inset: 0;                  /* about-wrap 안 전체 영역 */
+      pointer-events: none;
+      overflow: visible;
+      z-index: 3;
+    }
+
+    /* 개별 떠다니는 썸네일 */
+    .float-item {
+      position: absolute;
+      width: 70px;
+      height: 70px;
+      background-size: cover;
+      background-position: center;
+      border-radius: 8px;
+      opacity: 0.8;
+      animation: floatMove 12s infinite ease-in-out alternate;
+      filter: drop-shadow(0px 10px 25px rgba(0, 0, 0, 0.22));
+    }
+
+    /* 둥둥 떠다니는 애니메이션 */
+    @keyframes floatMove {
+      0% {
+        transform: translateY(0px) translateX(0px);
+      }
+      50% {
+        transform: translateY(-25px) translateX(12px);
+      }
+      100% {
+        transform: translateY(18px) translateX(-10px);
+      }
+    }
+
+    @media (max-width: 900px) {
+      .page {
+        padding: 16px 12px 32px;
+      }
+
+      .top-nav {
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <!-- 상단 네비 -->
+    <nav class="top-nav">
+      <button class="pill-btn" onclick="window.location.href='start.html'">
+        Main
+      </button>
+
+      <button class="pill-btn active">
+        About
+      </button>
+
+      <button class="pill-btn" onclick="window.location.href='generator.html'">
+        Enter LAB
+      </button>
+
+      <button class="pill-btn" onclick="window.location.href='generator.html#archive'">
+        Moments
+      </button>
+    </nav>
+
+    <!-- About 키비주얼 + floating archive -->
+    <main class="about-wrap">
+      <img src="page_key_visual-04.svg" alt="Leopard Lab About" class="about-img" />
+
+      <!-- 🔥 키비주얼 위로 둥둥 떠다니는 레이어 -->
+      <div class="floating-archive" id="floatingArchive"></div>
+    </main>
+  </div>
+
+  <!-- 🔥 Firestore에서 아카이빙된 호피 불러와서 떠다니게 -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      query,
+      orderBy,
+      limit,
+      getDocs
+    } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA_SEmwoDZaVpwrUvXC3bto9wq-qifApIM",
+      authDomain: "leopard-lab.firebaseapp.com",
+      projectId: "leopard-lab",
+      storageBucket: "leopard-lab.firebasestorage.app",
+      messagingSenderId: "255753558964",
+      appId: "1:255753558964:web:cac3ccb9d28456919930e1",
+      measurementId: "G-1TQLKCJ4RE"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    async function loadFloatingArchive() {
+      const wrap = document.getElementById("floatingArchive");
+      if (!wrap) return;
+
+      const q = query(
+        collection(db, "archives"),
+        orderBy("createdAt", "desc"),
+        limit(12)
+      );
+
+      const snap = await getDocs(q);
+
+      snap.forEach((doc) => {
+        const d = doc.data();
+        if (!d || !d.thumbnailUrl) return;
+
+        const el = document.createElement("div");
+        el.className = "float-item";
+        el.style.backgroundImage = `url(${d.thumbnailUrl})`;
+
+        // 🔸 about-wrap 안에서 랜덤 위치 (조금 안쪽으로만)
+        el.style.top = (10 + Math.random() * 70) + "%";
+        el.style.left = (5 + Math.random() * 70) + "%";
+
+        // 🔸 랜덤 속도
+        el.style.animationDuration = (10 + Math.random() * 5) + "s";
+
+        wrap.appendChild(el);
+      });
+    }
+
+    loadFloatingArchive();
+  </script>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Momentary Leopard Lab</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="nav">
+    <!-- Back to Start -->
+    <button class="back-btn" onclick="window.location.href='start.html'">Main</button>
+
+    <!-- LAB tabs -->
+    <button id="tab-generator" class="nav-tab active-tab" onclick="goPage('generator')">
+      Generator
+    </button>
+    <button id="tab-result" class="nav-tab" onclick="goPage('result')">
+      Result
+    </button>
+    <button id="tab-archive" class="nav-tab" onclick="goPage('archive')">
+      Moments
+    </button>
+  </div>
+
+  <main>
+    <!-- PAGE: GENERATOR -->
+    <section id="generator" class="page active">
+      <h1>Momentary Leopard Generator</h1>
+      <p class="page-desc">
+        지금의 감정과 취향을 슬라이더로 조절해보세요.<br>
+        그 순간의 상태를 닮은 호피 패턴이 생성됩니다.
+      </p>
+
+      <div class="gen-layout">
+        <div class="panel">
+          <h2>지금의 상태 입력하기</h2>
+
+          <div class="slider-box">
+            <p>지금의 에너지는 어느 정도인가요?</p>
+            <input type="range" id="s_complexity" min="0" max="100" value="50">
+          </div>
+
+          <div class="slider-box">
+            <p>지금의 감정은 얼마나 부드럽나요?</p>
+            <input type="range" id="s_softness" min="0" max="100" value="60">
+          </div>
+
+          <div class="slider-box">
+            <p>지금 당신은 자신을 어느 정도 드러내고 싶나요?</p>
+            <input type="range" id="s_display" min="0" max="100" value="40">
+          </div>
+
+          <div class="slider-box">
+            <p>지금의 생각이나 감정은 얼마나 복잡하게 얽혀 있나요?</p>
+            <input type="range" id="s_chaos" min="0" max="100" value="10">
+          </div>
+
+          <div class="slider-box">
+            <p>지금 당장 엉뚱한 이벤트가 찾아왔으면 좋겠나요?</p>
+            <input type="range" id="s_quirk" min="0" max="100" value="10">
+          </div>
+
+          <div class="slider-box">
+            <p>지금의 마음에는 얼마나 여유가 있나요?</p>
+            <input type="range" id="s_rest" min="0" max="100" value="50">
+          </div>
+
+          <button class="btn-primary" id="btn-generate">지금의 호피 뽑기</button>
+        </div>
+
+        <div class="preview-wrap">
+          <svg id="previewSvg" width="520" height="520"></svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE: RESULT -->
+    <section id="result" class="page">
+      <div class="result-layout">
+        <div class="panel">
+          <h1 class="result-title">Your Momentary Leopard</h1>
+          <div id="resultImage"></div>
+        </div>
+
+        <div class="panel">
+          <div class="badge">
+            <span>지금의 호피 타입</span>
+          </div>
+          <h2 id="resultType">아직 생성된 호피가 없습니다.</h2>
+
+          <div id="resultStats" class="result-stats"></div>
+
+          <p id="resultDescription" class="result-desc"></p>
+
+          <div class="result-buttons">
+            <button class="btn-secondary" id="btn-save-archive">Leopard Moments에 저장</button>
+            <button class="btn-secondary" id="btn-save-png">PNG 저장 (투명 배경)</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE: ARCHIVE -->
+    <section id="archive" class="page">
+      <h1>Leopard Moments</h1>
+      <p class="page-desc">
+        여기에는 각 순간에 생성된 호피가 기록됩니다.<br>
+        같은 날이라도, 상태가 달라지면 전혀 다른 패턴이 쌓여요.
+      </p>
+
+      <!-- 🔥 정렬 컨트롤 -->
+     <div class="archive-header-row">
+
+  <div class="archive-view-toggle">
+    <button id="view-my" class="view-pill active">내 Moments</button>
+    <button id="view-all" class="view-pill">모두의 Moments</button>
+  </div>
+
+  <div class="archive-controls">
+    <span class="archive-controls-label">정렬 기준</span>
+    <div class="archive-sort-select">
+      <select id="archiveSort" class="archive-sort-pill">
+        <option value="time-desc">최신 순</option>
+        <option value="time-asc">오래된 순</option>
+        <option value="soft-desc">말랑한 순</option>
+        <option value="soft-asc">단단한 순</option>
+        <option value="chaos-desc">내적 폭풍 센 순</option>
+        <option value="chaos-asc">내적 폭풍 잔잔한 순</option>
+        <option value="rest-desc">여유 많은 순</option>
+        <option value="rest-asc">여유 없는 순</option>
+      </select>
+    </div>
+  </div>
+
+</div>
+
+
+      <!-- 🔍 보기 모드 탭: 내 것 vs 모두 -->
+  
+      <div id="archiveList" class="archive-list"></div>
+    </section>
+  </main>
+
+  <!-- Firebase CDN (compat) + config -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyA_SEmwoDZaVpwrUvXC3bto9wq-qifApIM",
+      authDomain: "leopard-lab.firebaseapp.com",
+      projectId: "leopard-lab",
+      storageBucket: "leopard-lab.firebasestorage.app",
+      messagingSenderId: "255753558964",
+      appId: "1:255753558964:web:cac3ccb9d28456919930e1",
+      measurementId: "G-1TQLKCJ4RE"
+    };
+    firebase.initializeApp(firebaseConfig);
+  </script>
+
+  <script src="main.js"></script>
+</body>
+</html>
