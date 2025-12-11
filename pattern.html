@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pattern View</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body class="pattern-view">
+  <div class="pattern-nav">
+    <button class="back-btn" onclick="goResultPage()">← Result로 돌아가기</button>
+  </div>
+
+  <main class="pattern-main">
+    <div class="pattern-card">
+      <div id="patternTile" class="pattern-tile"></div>
+
+      <!-- 🔘 상단 오른쪽 버튼들 -->
+      <div class="pattern-actions">
+        <button class="pattern-btn" id="btnToggleInvert">배경 반전</button>
+        <button class="pattern-btn" id="btnSavePattern">이미지 저장</button>
+      </div>
+
+      <!-- 🔘 하단 중앙 가로 슬라이더 -->
+      <div class="tile-slider-wrap">
+        <input type="range" id="tileSize" min="50" max="400" value="180" />
+      </div>
+    </div>
+  </main>
+
+  <script src="pattern.js"></script>
+</body>
+</html>

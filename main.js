@@ -24,7 +24,6 @@ let sliderEls = null;
 
 /* ==========================================================
    공용 유틸: frame 단위 스로틀
-   - 같은 frame 안에서는 여러 번 호출돼도 1번만 실행
 ========================================================== */
 function throttleFrame(fn) {
   let scheduled = false;
@@ -67,10 +66,9 @@ function goPage(id) {
 }
 
 /* ==========================================================
-   슬라이더 값 읽기 (DOM 재검색 X, 캐시 사용)
+   슬라이더 값 읽기
 ========================================================== */
 function getSliderValues() {
-  // sliderEls는 load 시점에 캐싱됨
   return {
     complexity: Number(sliderEls.complexity.value),
     softness:   Number(sliderEls.softness.value),
@@ -83,23 +81,20 @@ function getSliderValues() {
 
 /* ==========================================================
    내부 엔진 파라미터
-   - chaos → turb(0~100)
-   - quirk → disp(0~100)
-   - count 상한 걸어서 Voronoi O(n^2) 폭주 방지
 ========================================================== */
 function getEngineParams(v, quality = "high") {
   const densityFactor = quality === "low" ? 0.5 : 1;
 
   let count = Math.round((10 + v.complexity * 1.1) * densityFactor);
-  const maxCount = quality === "low" ? 40 : 80; // 🔥 상한 (시각적 밀도 유지 + 계산량 제한)
+  const maxCount = quality === "low" ? 40 : 80;
   if (count > maxCount) count = maxCount;
 
   const round = (v.softness / 100) * 40;
   const band  = 5 + (v.display / 100) * 30;
   const gap   = -10 + (v.rest / 100) * 30;
 
-  const turb = v.chaos; // 0~100
-  const disp = v.quirk; // 0~100
+  const turb = v.chaos;
+  const disp = v.quirk;
 
   return { count, round, band, gap, turb, disp };
 }
@@ -115,7 +110,7 @@ function toDots(v) {
 }
 
 /* ==========================================================
-   타입 판별 (그대로)
+   타입 판별
 ========================================================== */
 function getLeopardType(v) {
   const hi = x => x >= 60;
@@ -201,7 +196,7 @@ function getLeopardType(v) {
 }
 
 /* ==========================================================
-   🔥 패턴 엔진 (filter 재사용 + DOM 최소화)
+   패턴 엔진
 ========================================================== */
 function initSvgFilter(svg) {
   if (svg._filterInitialized) return;
@@ -226,14 +221,12 @@ function initSvgFilter(svg) {
   defs.appendChild(filter);
   svg.appendChild(defs);
 
-  // 레퍼런스 캐싱
   svg._feT = feT;
   svg._feD = feD;
   svg._filterInitialized = true;
 }
 
 function clearSvgExceptDefs(svg) {
-  // Array.from 대신 역순으로 child 제거 (할당 줄이기)
   let node = svg.lastChild;
   while (node) {
     const prev = node.previousSibling;
@@ -245,11 +238,11 @@ function clearSvgExceptDefs(svg) {
 }
 
 function drawPattern(v, quality = "high") {
-  const svg = previewSvgEl || document.getElementById("previewSvg");
+  const svg = previewSvgEl;
   if (!svg) return;
 
-  initSvgFilter(svg);        // 필터 1회 초기화
-  clearSvgExceptDefs(svg);   // defs 남기고 path만 제거
+  initSvgFilter(svg);
+  clearSvgExceptDefs(svg);
 
   const W = 520, H = 520;
   svg.setAttribute("viewBox", "0 0 520 520");
@@ -259,7 +252,6 @@ function drawPattern(v, quality = "high") {
   const chaosPower = p.turb / 100;
   const quirkPower = p.disp / 100;
 
-  /* ---------- 필터 값 업데이트 ---------- */
   const feT = svg._feT;
   const feD = svg._feD;
 
@@ -279,25 +271,26 @@ function drawPattern(v, quality = "high") {
     feD.setAttribute("scale", filterScale.toFixed(1));
   }
 
-  /* ---------- geometry jitter (quirk → 점 좌표 흔들기) ---------- */
   const clamp = (val, min, max) => (val < min ? min : val > max ? max : val);
 
+  /* ---------- 포인트 생성 ---------- */
   const count = p.count;
-  const geomJitter = quirkPower * 30;  // 0~30px
-
   const pts = new Array(count);
+  const geomJitter = quirkPower * 30;
+
   for (let i = 0; i < count; i++) {
     const baseX = Math.random() * W;
     const baseY = Math.random() * H;
     const jx = (Math.random() - 0.5) * 2 * geomJitter;
     const jy = (Math.random() - 0.5) * 2 * geomJitter;
-    const x = clamp(baseX + jx, 0, W);
-    const y = clamp(baseY + jy, 0, H);
-    pts[i] = [x, y];
+    pts[i] = [
+      clamp(baseX + jx, 0, W),
+      clamp(baseY + jy, 0, H)
+    ];
   }
 
-  /* ---------- Voronoi + 도넛 ---------- */
-  const centroid = (poly) => {
+  /* ---------- Voronoi + inset ---------- */
+  const centroid = poly => {
     let sx = 0, sy = 0;
     const len = poly.length;
     for (let i = 0; i < len; i++) {
@@ -379,8 +372,14 @@ function drawPattern(v, quality = "high") {
       const r1 = r < l1 / 2 ? r : l1 / 2;
       const r2 = r < l2 / 2 ? r : l2 / 2;
 
-      const p1a = [p1[0] - (v1x / l1) * r1, p1[1] - (v1y / l1) * r1];
-      const p1b = [p1[0] + (v2x / l2) * r2, p1[1] + (v2y / l2) * r2];
+      const p1a = [
+        p1[0] - (v1x / l1) * r1,
+        p1[1] - (v1y / l1) * r1
+      ];
+      const p1b = [
+        p1[0] + (v2x / l2) * r2,
+        p1[1] + (v2y / l2) * r2
+      ];
 
       if (i === 0) d += "M" + p1a[0] + "," + p1a[1] + " ";
       else d += "L" + p1a[0] + "," + p1a[1] + " ";
@@ -393,7 +392,6 @@ function drawPattern(v, quality = "high") {
   const round = p.round;
   const band  = p.band;
   const gap   = p.gap;
-
   const displayNorm = v.display / 100;
 
   for (let i = 0; i < count; i++) {
@@ -407,12 +405,12 @@ function drawPattern(v, quality = "high") {
 
     for (let j = 0; j < count; j++) {
       if (i === j) continue;
-      const pj = pts[j];
 
+      const pj = pts[j];
       let a = pj[0] - pi[0];
       let b = pj[1] - pi[1];
-      const mx = (pi[0] + pj[0]) * 0.5;
-      const my = (pi[1] + pj[1]) * 0.5;
+      const mx = 0.5 * (pi[0] + pj[0]);
+      const my = 0.5 * (pi[1] + pj[1]);
       let c = -(a * mx + b * my);
 
       if (a * pi[0] + b * pi[1] + c < 0) {
@@ -420,6 +418,7 @@ function drawPattern(v, quality = "high") {
         b = -b;
         c = -c;
       }
+
       cell = clipPolygon(cell, a, b, c);
       if (!cell.length) break;
     }
@@ -445,13 +444,12 @@ function drawPattern(v, quality = "high") {
     const jitter = (Math.random() - 0.5) * 0.15;
     const baseDark = 0.25 + displayNorm * 0.6;
     const darkness = baseDark + jitter;
-    const clampedDark = darkness < 0.2 ? 0.2 : darkness > 1 ? 1 : darkness;
+    const clampedDark = Math.max(0.2, Math.min(darkness, 1));
     const g = Math.round(255 * (1 - clampedDark));
     path.setAttribute("fill", "rgb(" + g + "," + g + "," + g + ")");
 
     const opacity = 0.25 + displayNorm * 0.6;
     path.setAttribute("fill-opacity", opacity.toFixed(2));
-
     path.setAttribute("filter", "url(#noiseFilter)");
 
     svg.appendChild(path);
@@ -459,21 +457,23 @@ function drawPattern(v, quality = "high") {
 }
 
 /* ==========================================================
-   배경 타일링
+   Result 배경
 ========================================================== */
 function setResultBackground(svgString) {
   if (!resultSectionEl) return;
 
-  let bgSvg = svgString
-    .replace(/fill-opacity="[^"]*"/g, 'fill-opacity="0.06"')
-    .replace(/fill="[^"]*"/g, 'fill="#000000"');
+  let bgSvg =
+    svgString
+      .replace(/fill-opacity="[^"]*"/g, 'fill-opacity="0.06"')
+      .replace(/fill="[^"]*"/g, 'fill="#000000"');
 
-  const encoded = encodeURIComponent(bgSvg)
-    .replace(/'/g, "%27")
-    .replace(/"/g, "%22");
+  const encoded =
+    encodeURIComponent(bgSvg)
+      .replace(/'/g, "%27")
+      .replace(/"/g, "%22");
 
   resultSectionEl.style.backgroundImage =
-    'url("data:image/svg+xml,' + encoded + '")';
+    `url("data:image/svg+xml,${encoded}")`;
 }
 
 /* ==========================================================
@@ -486,6 +486,66 @@ let archiveViewMode = "local";
 let localArchiveCache  = null;
 let globalArchiveCache = null;
 let globalArchiveLoading = false;
+
+/* ==========================================================
+   ⭐ NEW: Result 페이지 복원 로직
+========================================================== */
+function restoreLeopardFromStorage() {
+  const raw = localStorage.getItem("latestPatternData");
+  if (!raw) return;
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (e) {
+    return;
+  }
+  if (!data || !data.svg) return;
+
+  currentLeopard = data;
+
+  // SVG 렌더링
+  resultImageEl.innerHTML = data.svg;
+
+  // 타입 출력
+  resultTypeEl.textContent = `지금의 호피 타입: “${data.type}”`;
+
+  // 수치
+  const sliders = data.sliders || {};
+  resultStatsEl.innerHTML = "";
+  const stats = [
+    ["활기",    sliders.complexity ?? 0],
+    ["말랑함",  sliders.softness   ?? 0],
+    ["드러냄",  sliders.display    ?? 0],
+    ["혼란도",  sliders.chaos      ?? 0],
+    ["엉뚱함",  sliders.quirk      ?? 0],
+    ["여유",    sliders.rest       ?? 0]
+  ];
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < stats.length; i++) {
+    const row = document.createElement("div");
+    row.className = "stat-line";
+
+    const left = document.createElement("span");
+    left.className = "stat-label";
+    left.textContent = stats[i][0];
+
+    const right = document.createElement("span");
+    right.className = "stat-dots";
+    right.textContent = toDots(stats[i][1]);
+
+    row.appendChild(left);
+    row.appendChild(right);
+    frag.appendChild(row);
+  }
+  resultStatsEl.appendChild(frag);
+
+  // 설명
+  resultDescEl.innerHTML = `“${data.line1}”<br>“${data.line2}”`;
+
+  // 배경
+  setResultBackground(data.svg);
+}
 
 /* ==========================================================
    지금의 호피 생성
@@ -516,19 +576,18 @@ function generateLeopard() {
   ];
   const frag = document.createDocumentFragment();
   for (let i = 0; i < stats.length; i++) {
-    const label = stats[i][0];
-    const val   = stats[i][1];
     const row = document.createElement("div");
     row.className = "stat-line";
     row.innerHTML =
-      '<span class="stat-label">' + label + '</span>' +
-      '<span class="stat-dots">' + toDots(val) + '</span>';
+      `<span class="stat-label">${stats[i][0]}</span>` +
+      `<span class="stat-dots">${toDots(stats[i][1])}</span>`;
     frag.appendChild(row);
   }
   resultStatsEl.appendChild(frag);
 
   resultDescEl.innerHTML = `“${typeInfo.line1}”<br>“${typeInfo.line2}”`;
 
+  // SVG 저장
   const serializer = new XMLSerializer();
   const svgString = serializer.serializeToString(previewSvg);
   setResultBackground(svgString);
@@ -542,6 +601,9 @@ function generateLeopard() {
     line2: typeInfo.line2,
     svg: svgString
   };
+
+  // ⭐ pattern.html에서 복원하도록 저장
+  localStorage.setItem("latestPatternData", JSON.stringify(currentLeopard));
 
   goPage("result");
 }
@@ -599,7 +661,11 @@ function saveToArchive(silent) {
   const raw = localStorage.getItem(key);
   let list = [];
   if (raw) {
-    try { list = JSON.parse(raw); } catch(e) { list = []; }
+    try {
+      list = JSON.parse(raw);
+    } catch(e) {
+      list = [];
+    }
   }
   if (!Array.isArray(list)) list = [];
   list.push(currentLeopard);
@@ -607,10 +673,10 @@ function saveToArchive(silent) {
   localStorage.setItem(key, JSON.stringify(list));
   localArchiveCache = list;
 
+  // Firestore 저장 (옵션)
   try {
     if (window.firebase && firebase.firestore) {
       const db = firebase.firestore();
-
       const svgString = currentLeopard.svg;
       const base64 = btoa(unescape(encodeURIComponent(svgString)));
       const dataUrl = "data:image/svg+xml;base64," + base64;
@@ -626,17 +692,13 @@ function saveToArchive(silent) {
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       }).then(() => {
         globalArchiveCache = null;
-      }).catch(e => {
-        console.error("Firestore 저장 오류:", e);
       });
     }
-  } catch (e) {
-    console.error("Firestore 저장 오류:", e);
+  } catch(e) {
+    console.error(e);
   }
 
-  if (!silent) {
-    alert("Leopard Moments에 저장되었습니다 🐆");
-  }
+  if (!silent) alert("Leopard Moments에 저장되었습니다 🐆");
 }
 
 /* ==========================================================
@@ -670,19 +732,16 @@ function showArchiveLeopard(item) {
   ];
   const frag = document.createDocumentFragment();
   for (let i = 0; i < stats.length; i++) {
-    const label = stats[i][0];
-    const val   = stats[i][1];
-
     const row = document.createElement("div");
     row.className = "stat-line";
 
     const left = document.createElement("span");
     left.className = "stat-label";
-    left.textContent = label;
+    left.textContent = stats[i][0];
 
     const right = document.createElement("span");
     right.className = "stat-dots";
-    right.textContent = toDots(val);
+    right.textContent = toDots(stats[i][1]);
 
     row.appendChild(left);
     row.appendChild(right);
@@ -690,18 +749,19 @@ function showArchiveLeopard(item) {
   }
   resultStatsEl.appendChild(frag);
 
-  if (currentLeopard.line1 || currentLeopard.line2) {
-    resultDescEl.innerHTML = `“${currentLeopard.line1}”<br>“${currentLeopard.line2}”`;
-  } else {
-    resultDescEl.textContent = "";
-  }
+  resultDescEl.innerHTML = `“${currentLeopard.line1}”<br>“${currentLeopard.line2}”`;
 
+  // 배경
   setResultBackground(currentLeopard.svg);
+
+  // pattern.html 복원을 위해 저장 ⭐
+  localStorage.setItem("latestPatternData", JSON.stringify(currentLeopard));
+
   goPage("result");
 }
 
 /* ==========================================================
-   아카이브 정렬 & 렌더링
+   아카이브 정렬/로딩 (그대로)
 ========================================================== */
 function sortArchiveList(list, mode) {
   const arr = list.slice();
@@ -712,28 +772,21 @@ function sortArchiveList(list, mode) {
   const safeRest  = item => item && item.sliders ? (item.sliders.rest    ?? 0) : 0;
 
   switch (mode) {
-    case "time-asc":
-      arr.sort((a, b) => safeTime(a) - safeTime(b)); break;
-    case "soft-desc":
-      arr.sort((a, b) => safeSoft(b) - safeSoft(a)); break;
-    case "soft-asc":
-      arr.sort((a, b) => safeSoft(a) - safeSoft(b)); break;
-    case "chaos-desc":
-      arr.sort((a, b) => safeChaos(b) - safeChaos(a)); break;
-    case "chaos-asc":
-      arr.sort((a, b) => safeChaos(a) - safeChaos(b)); break;
-    case "rest-desc":
-      arr.sort((a, b) => safeRest(b) - safeRest(a)); break;
-    case "rest-asc":
-      arr.sort((a, b) => safeRest(a) - safeRest(b)); break;
-    case "time-desc":
+    case "time-asc":     arr.sort((a,b)=>safeTime(a)-safeTime(b)); break;
+    case "soft-desc":    arr.sort((a,b)=>safeSoft(b)-safeSoft(a)); break;
+    case "soft-asc":     arr.sort((a,b)=>safeSoft(a)-safeSoft(b)); break;
+    case "chaos-desc":   arr.sort((a,b)=>safeChaos(b)-safeChaos(a)); break;
+    case "chaos-asc":    arr.sort((a,b)=>safeChaos(a)-safeChaos(b)); break;
+    case "rest-desc":    arr.sort((a,b)=>safeRest(b)-safeRest(a)); break;
+    case "rest-asc":     arr.sort((a,b)=>safeRest(a)-safeRest(b)); break;
     default:
-      arr.sort((a, b) => safeTime(b) - safeTime(a)); break;
+      arr.sort((a,b)=>safeTime(b)-safeTime(a));
   }
   return arr;
 }
 
 function renderArchiveListFromArray(list) {
+  // 기존 출력 제거
   const oldInfo = archiveSectionEl.querySelectorAll(".archive-info, .archive-empty");
   for (let i = 0; i < oldInfo.length; i++) {
     oldInfo[i].remove();
@@ -762,26 +815,23 @@ function renderArchiveListFromArray(list) {
     if (!item) continue;
 
     let bgImageCss = null;
+
     try {
       if (item.thumbnailUrl) {
-        bgImageCss = 'url("' + item.thumbnailUrl + '")';
-      } else if (item.svg && item.svg.trim().startsWith("<svg")) {
+        bgImageCss = `url("${item.thumbnailUrl}")`;
+      } else if (item.svg?.trim().startsWith("<svg")) {
         const encodedSvg = encodeURIComponent(item.svg)
           .replace(/'/g, "%27")
           .replace(/"/g, "%22");
-        bgImageCss = 'url("data:image/svg+xml,' + encodedSvg + '")';
-      } else if (item.svg && item.svg.startsWith("data:")) {
-        bgImageCss = 'url("' + item.svg + '")';
+        bgImageCss = `url("data:image/svg+xml,${encodedSvg}")`;
       }
-    } catch (e) {
-      bgImageCss = null;
-    }
+    } catch(e) {}
+
     if (!bgImageCss) continue;
 
     const tile = document.createElement("div");
     tile.className = "archive-tile";
     tile.style.backgroundImage = bgImageCss;
-    tile.style.cursor = "pointer";
 
     const time = new Date(item.timestamp || Date.now());
     const timeStr = time.toLocaleString("ko-KR", {
@@ -792,8 +842,8 @@ function renderArchiveListFromArray(list) {
     const overlay = document.createElement("div");
     overlay.className = "archive-tile-info";
     overlay.innerHTML =
-      '<div class="archive-tile-type">' + (item.type || "") + '</div>' +
-      '<div class="archive-tile-time">' + timeStr + '</div>';
+      `<div class="archive-tile-type">${item.type || ""}</div>` +
+      `<div class="archive-tile-time">${timeStr}</div>`;
     tile.appendChild(overlay);
 
     tile.addEventListener("click", () => {
@@ -806,9 +856,6 @@ function renderArchiveListFromArray(list) {
   archiveListEl.appendChild(frag);
 }
 
-/* ==========================================================
-   로컬/글로벌 아카이브
-========================================================== */
 function loadLocalArchive() {
   if (Array.isArray(localArchiveCache)) {
     renderArchiveListFromArray(localArchiveCache);
@@ -817,7 +864,7 @@ function loadLocalArchive() {
   const raw = localStorage.getItem("leopardArchive");
   let list = [];
   if (raw) {
-    try { list = JSON.parse(raw); } catch (e) { list = []; }
+    try { list = JSON.parse(raw); } catch(e) { list = []; }
   }
   if (!Array.isArray(list)) list = [];
   localArchiveCache = list;
@@ -847,32 +894,25 @@ async function loadGlobalArchive() {
       .orderBy("createdAt", "desc")
       .limit(80)
       .get();
-  } catch (e) {
-    console.error("Firestore 불러오기 오류:", e);
+  } catch(e) {
+    console.error("Firestore load error:", e);
     globalArchiveLoading = false;
-    renderArchiveListFromArray([]);
-    return;
+    return renderArchiveListFromArray([]);
   }
 
   globalArchiveLoading = false;
 
-  if (snap.empty) {
-    globalArchiveCache = [];
-    renderArchiveListFromArray([]);
-    return;
-  }
-
   const list = snap.docs.map(doc => {
-    const data = doc.data();
+    const d = doc.data();
     return {
-      timestamp: data.createdAt ? data.createdAt.toMillis() : Date.now(),
-      sliders: data.sliders || {},
-      engineParams: data.engineParams || null,
-      type: data.type || "",
-      line1: data.line1 || "",
-      line2: data.line2 || "",
-      svg: data.svg || "",
-      thumbnailUrl: data.thumbnailUrl || ""
+      timestamp: d.createdAt ? d.createdAt.toMillis() : Date.now(),
+      sliders: d.sliders || {},
+      engineParams: d.engineParams || null,
+      type: d.type || "",
+      line1: d.line1 || "",
+      line2: d.line2 || "",
+      svg: d.svg || "",
+      thumbnailUrl: d.thumbnailUrl || ""
     };
   });
 
@@ -881,18 +921,14 @@ async function loadGlobalArchive() {
 }
 
 function loadArchive() {
-  if (archiveViewMode === "global") {
-    loadGlobalArchive();
-  } else {
-    loadLocalArchive();
-  }
+  if (archiveViewMode === "global") loadGlobalArchive();
+  else loadLocalArchive();
 }
 
 /* ==========================================================
    초기 로딩
 ========================================================== */
 window.addEventListener("load", () => {
-  // DOM 캐싱
   previewSvgEl      = document.getElementById("previewSvg");
   resultImageEl     = document.getElementById("resultImage");
   resultTypeEl      = document.getElementById("resultType");
@@ -908,7 +944,6 @@ window.addEventListener("load", () => {
   viewMyBtnEl       = document.getElementById("view-my");
   viewAllBtnEl      = document.getElementById("view-all");
 
-  // 슬라이더 DOM 캐시
   sliderEls = {
     complexity: document.getElementById("s_complexity"),
     softness:   document.getElementById("s_softness"),
@@ -918,25 +953,17 @@ window.addEventListener("load", () => {
     rest:       document.getElementById("s_rest")
   };
 
-  // 첫 미리보기: low 퀄리티
   drawPattern(getSliderValues(), "low");
 
   const sliders = document.querySelectorAll('input[type="range"]');
   const throttledDraw = throttleFrame(() => {
-    const v = getSliderValues();
-    drawPattern(v, "low");
+    drawPattern(getSliderValues(), "low");
   });
+  sliders.forEach(sl => sl.addEventListener("input", throttledDraw));
 
-  for (let i = 0; i < sliders.length; i++) {
-    sliders[i].addEventListener("input", throttledDraw);
-  }
-
-  if (btnGenerateEl)
-    btnGenerateEl.addEventListener("click", generateLeopard);
-  if (btnSaveArchiveEl)
-    btnSaveArchiveEl.addEventListener("click", () => saveToArchive(false));
-  if (btnSavePngEl)
-    btnSavePngEl.addEventListener("click", saveCurrentAsPNG);
+  if (btnGenerateEl) btnGenerateEl.addEventListener("click", generateLeopard);
+  if (btnSaveArchiveEl) btnSaveArchiveEl.addEventListener("click", () => saveToArchive(false));
+  if (btnSavePngEl) btnSavePngEl.addEventListener("click", saveCurrentAsPNG);
 
   if (sortSelectEl) {
     sortSelectEl.addEventListener("change", (e) => {
@@ -952,7 +979,6 @@ window.addEventListener("load", () => {
       viewAllBtnEl.classList.remove("active");
       loadArchive();
     });
-
     viewAllBtnEl.addEventListener("click", () => {
       archiveViewMode = "global";
       viewAllBtnEl.classList.add("active");
@@ -961,9 +987,27 @@ window.addEventListener("load", () => {
     });
   }
 
-  if (location.hash === "#archive") {
-    goPage("archive");
-  } else if (location.hash === "#result") {
+  // ⭐ 페이지 로드 시 result 복구
+  if (location.hash === "#result") {
     goPage("result");
+    restoreLeopardFromStorage(); // ⭐ here
+  } else if (location.hash === "#archive") {
+    goPage("archive");
   }
 });
+
+/* ==========================================================
+   ⭐ Pattern View 이동
+========================================================== */
+function openPatternPage() {
+  if (!currentLeopard || !currentLeopard.svg) {
+    alert("먼저 패턴을 생성해 주세요!");
+    return;
+  }
+
+  // ⭐ Result 복원을 위해 전체 데이터를 저장
+  localStorage.setItem("latestPatternData", JSON.stringify(currentLeopard));
+
+  window.location.href = "pattern.html";
+}
+
